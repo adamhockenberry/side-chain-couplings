@@ -44,6 +44,42 @@ def process_contacts_df(df_contacts, primary_distance_cutoff):
     df_contacts_stack.columns = ['aa1_loc', 'aa2_loc', 'distance', 'primary_chain_distance']
     return df_contacts, df_contacts_stack
 
+def process_angles_df(df_angles, primary_distance_cutoff):
+    primary_distance_cutoff = 12
+
+    df_angles.fillna(value=-100, inplace=True)
+    df_angles.columns = df_angles.columns.astype(int)
+    df_angles_stack = df_angles.where(np.triu(np.ones(df_angles.shape)).astype(np.bool))
+    df_angles_stack = df_angles_stack.stack().reset_index()
+    
+    
+    df_angles_stack['abs_diff'] = df_angles_stack['level_0'] - df_angles_stack['level_1']
+    df_angles_stack['abs_diff'] = df_angles_stack['abs_diff'].abs()
+    df_angles_stack = df_angles_stack[df_angles_stack['abs_diff'] >= primary_distance_cutoff]
+    df_angles_stack.reset_index(drop=True, inplace=True)
+    df_angles_stack.columns = ['aa1_loc', 'aa2_loc', 'angles1', 'primary_chain_distance']
+    
+    df_angles2_stack = df_angles.where(np.tril(np.ones(df_angles.shape)).astype(np.bool))
+    df_angles2_stack = df_angles2_stack.stack().reset_index()
+    
+    
+    df_angles2_stack['abs_diff'] = df_angles2_stack['level_0'] - df_angles2_stack['level_1']
+    df_angles2_stack['abs_diff'] = df_angles2_stack['abs_diff'].abs()
+    df_angles2_stack = df_angles2_stack[df_angles2_stack['abs_diff'] >= primary_distance_cutoff]
+    df_angles2_stack.reset_index(drop=True, inplace=True)
+    df_angles2_stack.columns = ['aa1_loc', 'aa2_loc', 'angles2', 'primary_chain_distance']
+    df_angles2_stack = df_angles2_stack.sort_values(['aa2_loc', 'aa1_loc'])
+    df_angles2_stack.rename(dict(zip(list(df_angles2_stack.index), list(df_angles_stack.index))), inplace=True)
+    
+    assert all(df_angles_stack['aa1_loc'] == df_angles2_stack['aa2_loc'])
+    assert all(df_angles_stack['aa2_loc'] == df_angles2_stack['aa1_loc'])
+    df_angles_stack = pd.concat([df_angles_stack, df_angles2_stack[['angles2']]],\
+                                axis=1, join_axes=[df_angles_stack.index])
+    df_angles.replace(-100., np.nan, inplace=True)
+    df_angles_stack['angles1'] = df_angles_stack['angles1'].replace(-100, np.nan)
+    df_angles_stack['angles2'] = df_angles_stack['angles2'].replace(-100, np.nan)
+    return df_angles_stack
+
 def merge_contacts_couplings(df_contacts_stack, df_couplings_stack, seq):
     assert all(df_couplings_stack['aa1_loc'] == df_contacts_stack['aa1_loc'])
     assert all(df_couplings_stack['aa2_loc'] == df_contacts_stack['aa2_loc'])
