@@ -1,1 +1,2 @@
 # side-chain-couplings
+This repository is a currently incomplete/imperfect code base for a pending manuscript submission studying the ability of evolutionary couplings to detect various types of amino acid residue interactions. All data files that are required to run the code are not yet fully integrated into the repository and `Code' should be considered a work-in-progress. Both of these statements will change over the coming months.

@@ -5,14 +5,6 @@ def process_couplings_df(df_couplings, df_contacts, primary_distance_cutoff):
     '''
     Converts the basic output of plmc into a slightly more usable dataframe
     '''
-    df_couplings.columns = ['aa1_loc', 'trash1', 'aa2_loc', 'trash2', 'trash3', 'couplings']
-    #First get the absolute difference in chain number between all amino acid pairs
-    df_couplings['abs_diff_in_loc'] = df_couplings['aa1_loc'] - df_couplings['aa2_loc']
-    df_couplings['abs_diff_in_loc'] = df_couplings['abs_diff_in_loc'].abs()
-    #Only consider amino acids separated by greater than some chain distance
-    df_couplings = df_couplings[df_couplings['abs_diff_in_loc'] >=primary_distance_cutoff]
-    df_couplings = df_couplings.sort_values('couplings', ascending=False)
-
     df_couplings_pivot = df_couplings.pivot(index='aa1_loc', columns='aa2_loc', values='couplings')    
     
     for col in df_contacts.columns:
@@ -26,11 +18,18 @@ def process_couplings_df(df_couplings, df_contacts, primary_distance_cutoff):
     df_couplings_pivot = df_couplings_pivot.reindex_axis(sorted(df_couplings_pivot.columns), axis=1)
         
     df_couplings_stack = df_couplings_pivot.where(np.triu(np.ones(df_couplings_pivot.shape)).astype(np.bool))
-    df_couplings_stack = df_couplings_stack.stack().reset_index()
+    df_couplings_stack = df_couplings_stack.stack(dropna=False).reset_index()
+    df_couplings_stack = df_couplings_stack[df_couplings_stack['aa1_loc'] < df_couplings_stack['aa2_loc']]
     df_couplings_stack.reset_index(drop=True, inplace=True)
     df_couplings_stack.columns = ['aa1_loc', 'aa2_loc', 'couplings']
+    
+    df_couplings_stack['abs_diff_in_loc'] = df_couplings_stack['aa1_loc'] - df_couplings_stack['aa2_loc']
+    df_couplings_stack['abs_diff_in_loc'] = df_couplings_stack['abs_diff_in_loc'].abs()
+    ##Only consider amino acids separated by greater than some chain distance
+    df_couplings_stack = df_couplings_stack[df_couplings_stack['abs_diff_in_loc'] >=primary_distance_cutoff]
+    df_couplings_stack.reset_index(drop=True, inplace=True)
 
-    return df_couplings, df_couplings_pivot, df_couplings_stack
+    return df_couplings_stack, df_couplings_pivot
 
 def process_contacts_df(df_contacts, primary_distance_cutoff):
     df_contacts.columns = df_contacts.columns.astype(int)
@@ -95,15 +94,14 @@ def merge_contacts_couplings(df_contacts_stack, df_couplings_stack, seq):
     
 def ppv_from_df(merged_df, number_to_test, length_cutoff=8):
     temp_df = merged_df[:number_to_test]
-    tps = temp_df[temp_df['distance']<length_cutoff]['distance'].count()
+    tps = temp_df[temp_df['distance']<=length_cutoff]['distance'].count()
     totals = temp_df['distance'].count()
     return  tps/totals, totals
 
-def errors_from_df(merged_df, number_to_test, length_cutoff=8):
-    merged_df.sort_values('couplings', ascending=False, inplace=True)
+def recall_from_df(merged_df, number_to_test, length_cutoff=8):
     temp_df = merged_df[:number_to_test]
-    tps_df = temp_df[temp_df['distance']<=length_cutoff]
-    tps = tps_df['distance'].count()
-    fps_df = temp_df[temp_df['distance']>length_cutoff]
-    fns_df = merged_df[merged_df['distance']<=length_cutoff][tps:]
-    return  tps_df, fps_df, fns_df
+    tps = temp_df[temp_df['distance']<=length_cutoff]['distance'].count()
+    temp_df = merged_df[number_to_test:]
+    fns = temp_df[temp_df['distance']<=length_cutoff]['distance'].count()
+    totals = tps+fns
+    return  tps/totals, totals 
